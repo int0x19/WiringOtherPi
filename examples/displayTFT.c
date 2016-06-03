@@ -1114,7 +1114,7 @@ void TFT_Fill(unsigned int color)
 void TFT_Char(char C,unsigned int x,unsigned int y,char DimFont,unsigned int Fcolor,unsigned int Bcolor)
 {
 const char *PtrFont;
-unsigned int Cptrfont,rows,dd;	
+unsigned int Cptrfont,rows,dd,size,a;	
 unsigned char font8x8[16];
 unsigned int font16x16[16];
 unsigned char font24x24[96];  
@@ -1179,21 +1179,32 @@ if (DimFont == 24)
           digitalWrite(CSX, HIGH); 
 }
 else
-if ((DimFont == 32) && (C != ' '))  //32x48
+if (((DimFont == 32) || (DimFont == 64)) && (C != ' '))  //32x48
 {
 	
-		
+    if (DimFont == 32)
+    {  
+        rows=4;
+        size=1;
+    }    
+    else
+    {   
+        rows=8;
+        size=2;
+    }            
+   
+         
 	if ((C == ':') || (C == '.'))
-	{
-		 TFT_Set_Address(x,y,x+47,y+15);
-		 rows=2;
-	}	
-	else
-	{	
-		 TFT_Set_Address(x,y,x+47,y+31);
-		 rows=4;
-	}
-  
+        {
+		
+              TFT_Set_Address(x,y,(x+(12*rows)-1),y+(4*rows)-1);  
+              rows=2;
+        }
+        else
+        {  
+          TFT_Set_Address(x,y,(x+(12*rows)-1),y+(8*rows)-1);  
+          rows=4;
+        }
   
   	   PtrFont = &SegmentFont[0];
 	   Cptrfont = (C-'0')*192;
@@ -1217,13 +1228,26 @@ if ((DimFont == 32) && (C != ' '))  //32x48
 		
        		for(j=0; j < 8; j++)
                     {
+                    for(a=0;a<size;a++)
+                      {  
                              for(k = 0; k < 48; k++)
        				{        
-           				if ((font32x32[(47-k)*rows+i] >> (7-j)) & 1)
-             				Write_Data2(Fcolor);
+           				if (font32x32[(47-k)*rows+i] >> (7-j) & 1)
+                                        {  
+             				  Write_Data2(Fcolor);
+                                          if (DimFont == 64)
+                                           Write_Data2(Fcolor);   
+                                        }  
          				 else
-             				Write_Data2(Bcolor);
+                                         {     
+             				  Write_Data2(Bcolor);
+                                          if (DimFont == 64)
+                                           Write_Data2(Bcolor); 
+                                         } 
        				}
+                             
+                          
+                       }     
                     }
                 }
   
@@ -1340,14 +1364,17 @@ void TFT_Text(char* S,unsigned int x,unsigned int y,unsigned int DimFont,unsigne
 			
                        TFT_Char(*S,x,y,DimFont,Fcolor,Bcolor);
 	
-              y = y + DimFont;
-			 		  if (DimFont == 16)
+                                    y = y + DimFont;
+                                           if ((DimFont == 64) && ((*S == ':') || (*S == '.')))	
+						  y-=32;
+                                           else
+			 		   if (DimFont == 16)
 							y-=2;
-						else
-						if ((DimFont == 32) && ((*S == ':') || (*S == '.')))	
+					   else
+					   if ((DimFont == 32) && ((*S == ':') || (*S == '.')))	
 						  y-=16;	
-             else 
-						if (DimFont == 24)
+                                           else 
+					   if (DimFont == 24)
 							y-=8;
 			 S++;
 		 }
@@ -1408,8 +1435,8 @@ int main (void)
                sprintf(buf,"%d-%d-%d %02d:%02d:%02d%c", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,0);
 
                 TFT_Text(buf,290,40,16,White,Black);
-                sprintf(buf,"%d.%d.%d %d%c", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,count,0);
-                TFT_Text(buf,100,20,32,Magenta,Black);  
+                sprintf(buf,"%d.0%c",count,0);
+                TFT_Text(buf,80,20,64,Magenta,Black);  
            //    TFT_Fill_Box(200,150,250,200,Black);   
                 
                 if (count == 2000)
