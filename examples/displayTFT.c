@@ -1382,7 +1382,7 @@ int main (void)
   
  //   for(;;);
   
-    count=1050;
+    count=1088;
     for(;;)
     {
       delay(500);
