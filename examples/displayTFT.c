@@ -11,6 +11,21 @@
 #include <stdint.h>
 #include <time.h>
 
+#include <stdarg.h>
+
+#include <stdlib.h>
+#include <ctype.h>
+#include <fcntl.h>
+#include <sys/time.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <sys/ioctl.h>
+
+
+#define FAST_DATA   // my own dedicated fast port write, 4-5 time faster
+
+#define BLINK_LED 29
 
 
 #define CSX  7
@@ -38,33 +53,33 @@ pins = [
     15,   # d1
     16,   # d2
     18,   # d3
-    19,   # d4 (???)
-    21,   # d6 (???)
-    22,   # d5 (???)
+    19,   # d4 
+    21,   # d6 
+    22,   # d5 
     23,   # d7
     24,   # d8
     26    # rst
 ]
 */
 
-//int pinsD[8] = {10,14,13,6,12,5,4,3};  //reverse
+
 int pinsD[8] = {3,4,5,12,6,13,14,10};
-//int pinsD[8] = {3,4,5,12,13,6,14,10};   // d5-d6
+
 
 /*
 D = [
     15,   # d1
     16,   # d2
     18,   # d3
-    19,   # d4 (???)
-    22,   # d5 (???)
-    21,   # d6 (???)
+    19,   # d4 
+    22,   # d5 
+    21,   # d6 
     23,   # d7
     24,   # d8
 ]
 */
 
-			  const char Font24[] =   //16x24
+const char Font24[] =   //16x24  only digits
 
 {
 //0           // row 1 - 4
@@ -160,7 +175,7 @@ D = [
 				
 };
 
-			  const char SegmentFont[] =
+const char SegmentFont[] =   //only digits and :.
 {  
 	//0
 	0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFE, 0x00, 0x01, 0xFF, 0xFF, 0x00,    // row 1 - 3
@@ -564,15 +579,217 @@ const char FONT_16x16[3104]  = {
 0x60,0x90,0x90,0x60,0x00,0x00,0x00,0x00,0x60,0x90,0x90,0x60,0x00,0x00,0x00,0x00,0x60,0x90,0x90,0x60,0x00,0x00,0x00,0x00,0x60,0x90,0x90,0x60,0x00,0x00,0x00,0x00
 };
 
+#define SUNXI_GPIO_BASE (0x01C20800)
+#define MAP_SIZE	(4096*2)
+#define MAP_MASK	(MAP_SIZE - 1)
+#define	BLOCK_SIZE		(4*1024)
+#define GPIO_BASE_BP		(0x01C20000)
+
+static volatile uint32_t *gpio1 ;
+int   fd ;
+
+ uint32_t readl1(uint32_t addr)
+{
+	  uint32_t val = 0;
+	  uint32_t mmap_base = (addr & ~MAP_MASK);
+	  uint32_t mmap_seek = ((addr - mmap_base) >> 2);
+	  val = *(gpio1 + mmap_seek);
+	  return val;
+	
+}
+void writel1(uint32_t val, uint32_t addr)
+{
+	  uint32_t mmap_base = (addr & ~MAP_MASK);
+	  uint32_t mmap_seek = ((addr - mmap_base) >> 2);
+	  *(gpio1 + mmap_seek) = val;
+}
+/*
+void wr_strobe()
+{
+    uint32_t regval = 0;
+    uint32_t phyaddr = SUNXI_GPIO_BASE  + 0x10; // +0x10 -> data reg C
+    regval = readl1(phyaddr);
+    regval &= 0xFFFFFFFD;
+    writel1(regval, phyaddr);  
+    regval |= 2;
+    writel1(regval, phyaddr);   
+}
+*/
+/*
+void sunxi1_digitalWrite(int pin, int value)
+{ 
+	 uint32_t regval = 0;
+	 int bank = pin >> 5;
+	 int index = pin - (bank << 5);
+	 uint32_t phyaddr = SUNXI_GPIO_BASE + (bank * 36) + 0x10; // +0x10 -> data reg
+	  
+	 if(1)
+	 {
+	          regval = readl1(phyaddr);
+			
+		  if(0 == value)
+		  {
+		   regval &= ~(1 << index);
+		   writel1(regval, phyaddr);
+		   regval = readl1(phyaddr);
+			 
+		  }
+		  else
+		  {
+		   regval |= (1 << index);
+		   writel1(regval, phyaddr);
+		   regval = readl1(phyaddr);
+			 
+		  }
+	 }
+	 
+	 
+	 return ;
+}
+
+void sunxi1_digitalWriteByte(int pin, int value)
+{ 
+	 uint32_t regval = 0;
+	 int bank = pin >> 5;
+	 int index = pin - (bank << 5);
+	 uint32_t phyaddr = SUNXI_GPIO_BASE + (bank * 36) + 0x10; // +0x10 -> data reg
+	  
+	 if(1)
+	 {
+	          regval = readl1(phyaddr);
+			
+		  if(0 == value)
+		  {
+		   regval &= ~(1 << index);
+		   writel1(regval, phyaddr);
+		   regval = readl1(phyaddr);
+			 
+		  }
+		  else
+		  {
+		   regval |= (1 << index);
+		   writel1(regval, phyaddr);
+		   regval = readl1(phyaddr);
+			 
+		  }
+	 }
+	 
+	 
+	 return ;
+}
 
 
+*/
+
+
+
+void Write_DataFast(unsigned int Fcolor)   //write 2 bytes of color
+ {
+ #ifdef FAST_DATA 
+    uint32_t regval = 0;
+// ----------------------------------------------------------------------------- 
+// color high  
+// -----------------------------------------------------------------------------    
+    uint32_t phyaddr = SUNXI_GPIO_BASE + (2 * 36) + 0x10; // +0x10 -> data reg C
+    regval = readl1(phyaddr);
+    regval &= 0xFFFFFF60;
+    regval += (Fcolor >> 11) & 1; //bit 0
+    regval += (Fcolor >> 12) & 2;  //1
+    regval += (Fcolor >> 12) & 4;  //2
+    regval += (Fcolor >> 12) & 8;  //3
+    regval += (Fcolor >> 5) & 0x10;  //4
+    regval += (Fcolor >> 3) & 0x80;  //7
+    writel1(regval, phyaddr);
+    
+    phyaddr = SUNXI_GPIO_BASE  + 0x10; // +0x10 -> data reg A
+    regval = readl1(phyaddr);
+    regval &= 0xFFFFFFF3;
+    regval += (Fcolor >> 10) & 4; //bit 2
+    regval += (Fcolor >> 5) & 8;  //3
+    regval &= 0xFFFFFFFD;   //strobe
+    writel1(regval, phyaddr);
+    regval |= 2;
+    writel1(regval, phyaddr);  
+ 
+// color low    
+    
+    phyaddr = SUNXI_GPIO_BASE + (2 * 36) + 0x10; // +0x10 -> data reg C
+    regval = readl1(phyaddr);
+    regval &= 0xFFFFFF60;
+    regval += (Fcolor >> 3) & 1; //bit 0
+    regval += (Fcolor >> 4) & 2;  //1
+    regval += (Fcolor >> 4) & 4;  //2
+    regval += (Fcolor >> 4) & 8;  //3
+    regval += (Fcolor << 3) & 0x10;  //4
+    regval += (Fcolor << 5) & 0x80;  //7
+    writel1(regval, phyaddr);
+     
+    phyaddr = SUNXI_GPIO_BASE  + 0x10; // +0x10 -> data reg A
+    regval = readl1(phyaddr);
+    regval &= 0xFFFFFFF3;
+    regval += (Fcolor >> 2) & 4; //bit 2
+    regval += (Fcolor << 3) & 8;  //3
+    regval &= 0xFFFFFFFD;   //strobe
+    writel1(regval, phyaddr);
+    regval |= 2;
+    writel1(regval, phyaddr);     
+    
+#else
+    digitalWrite(3, (Fcolor >> 8) & 1); 
+     digitalWrite(4, (Fcolor >> 9) & 1); 
+     digitalWrite(5, (Fcolor >> 10) & 1);   
+     digitalWrite(12, (Fcolor >> 11) & 1);   
+     digitalWrite(6, (Fcolor >> 12) & 1); 
+     digitalWrite(13, (Fcolor >> 13) & 1); 
+     digitalWrite(14, (Fcolor >> 14) & 1);   
+     digitalWrite(10, (Fcolor >> 15) & 1);  
+    digitalWrite(WRX, LOW);   
+    digitalWrite(WRX, HIGH);       
+     digitalWrite(3, (Fcolor >> 0) & 1); 
+     digitalWrite(4, (Fcolor >> 1) & 1); 
+     digitalWrite(5, (Fcolor >> 2) & 1);   
+     digitalWrite(12, (Fcolor >> 3) & 1);   
+     digitalWrite(6, (Fcolor >> 4) & 1); 
+     digitalWrite(13, (Fcolor >> 5) & 1); 
+     digitalWrite(14, (Fcolor >> 6) & 1);   
+     digitalWrite(10, (Fcolor >> 7) & 1);  
+    digitalWrite(WRX, LOW);   
+    digitalWrite(WRX, HIGH);   
+     
+#endif    
+  
+ } 
 
 void send_data (unsigned char byte)
 {
-//  int i;
-
-//int pinsD[8] = {3,4,5,12,6,13,14,10};
-  //for (i=0;i<8;i++)
+    
+#ifdef FAST_DATA
+    uint32_t regval = 0;
+    uint32_t phyaddr = SUNXI_GPIO_BASE + (2 * 36) + 0x10; // +0x10 -> data reg C
+    regval = readl1(phyaddr);
+    regval &= 0xFFFFFF60;
+    regval += (byte >> 3) & 1; //bit 0
+    regval += (byte >> 4) & 2;  //1
+    regval += (byte >> 4) & 4;  //2
+    regval += (byte >> 4) & 8;  //3
+    regval += (byte << 3) & 0x10;  //4
+    regval += (byte << 5) & 0x80;  //7
+    writel1(regval, phyaddr);
+    
+    phyaddr = SUNXI_GPIO_BASE  + 0x10; // +0x10 -> data reg A
+    regval = readl1(phyaddr);
+    regval &= 0xFFFFFFF3;
+    regval += (byte >> 2) & 4; //bit 2
+    regval += (byte << 3) & 8;  //3
+    regval &= 0xFFFFFFFD;   //strobe
+    writel1(regval, phyaddr);
+    regval |= 2;
+    writel1(regval, phyaddr);   
+    
+ 
+    
+#else    
+     
      digitalWrite(3, (byte >> 0) & 1); 
      digitalWrite(4, (byte >> 1) & 1); 
      digitalWrite(5, (byte >> 2) & 1);   
@@ -581,23 +798,13 @@ void send_data (unsigned char byte)
      digitalWrite(13, (byte >> 5) & 1); 
      digitalWrite(14, (byte >> 6) & 1);   
      digitalWrite(10, (byte >> 7) & 1);  
+ 
+    digitalWrite(WRX, LOW);   
+    digitalWrite(WRX, HIGH);   
+#endif     
   
-  
-  digitalWrite(WRX, LOW);   
-  digitalWrite(WRX, HIGH);   
+
 }
-
-
-
-/*
-def send_data(cs, byte):
-    g.output(DCX, cs)
-    g.output(WRX, 0)
-    for i in xrange(8):
-        g.output( D[i], (byte >> i) & 1 )
-    g.output(WRX, 1)
-*/
-
 
 
 void cmd(unsigned char byte)
@@ -642,11 +849,10 @@ void  Write_Data(unsigned int Fcolor)
  //   digitalWrite(WRX, HIGH); 
    digitalWrite(DCX, HIGH);
  }
-
+/*
  void Write_Data2(unsigned int Fcolor)
  {
    digitalWrite(DCX, HIGH);  
- //   digitalWrite(WRX, LOW); 
    
    data((Fcolor >>8) & 0xFF);
    data(Fcolor & 0xFF);
@@ -654,22 +860,23 @@ void  Write_Data(unsigned int Fcolor)
    digitalWrite(WRX, HIGH);   
  //   digitalWrite(WRX, HIGH); 
  }
+*/
 
+ 
+ 
 
 void init() {
 int x;
     wiringPiSetup () ;
 
-    pinMode (29, OUTPUT);  //led  
+    pinMode (BLINK_LED, OUTPUT);  //led  
   
-    //# prepare all pins for output
+    //# prepare all LCD pins for output 
     for (x=0;x<12;x++)
     { 
         pinMode (pins[x], OUTPUT);   
         digitalWrite(pins[x], HIGH);
     }
-
- 
   
     //# hard reset sequence
     digitalWrite(RES, HIGH);
@@ -683,136 +890,23 @@ int x;
     digitalWrite(CSX, HIGH);      
     digitalWrite(WRX, HIGH);     
     digitalWrite(CSX, LOW);       
+#ifdef FAST_DATA  
+  fd = open ("/dev/mem", O_RDWR | O_SYNC | O_CLOEXEC); 
+  gpio1 = (uint32_t *)mmap(0, BLOCK_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, GPIO_BASE_BP);
+#endif  
+  
 }
-
-
-
-void LCD_init()
-{
-write_command(0xE0); 
-write_data(0x00); 
-write_data(0x04); 
-write_data(0x0E); 
-write_data(0x08); 
-write_data(0x17); 
-write_data(0x0A); 
-write_data(0x40); 
-write_data(0x79); 
-write_data(0x4D); 
-write_data(0x07); 
-write_data(0x0E); 
-write_data(0x0A); 
-write_data(0x1A); 
-write_data(0x1D); 
-write_data(0x0F);  
-
-write_command(0xE1); 
-write_data(0x00); 
-write_data(0x1B); 
-write_data(0x1F); 
-write_data(0x02); 
-write_data(0x10); 
-write_data(0x05); 
-write_data(0x32); 
-write_data(0x34); 
-write_data(0x43); 
-write_data(0x02); 
-write_data(0x0A); 
-write_data(0x09); 
-write_data(0x33); 
-write_data(0x37); 
-write_data(0x0F); 
-
-write_command(0xC0); 
-write_data(0x18); 
-write_data(0x16); 
-
-write_command(0xC1); 
-write_data(0x41); 
-
-write_command(0xC5); 
-write_data(0x00); 
-write_data(0x1E); //VCOM
-write_data(0x80); 
-
-write_command(0x36); 
-write_data(0x48); 
-
-write_command(0x3A); //Interface Mode Control
-write_data(0x55); //16BIT 
-
-write_command(0xB1);   //Frame rate 70HZ  
-write_data(0xB0); 
-
-write_command(0xB4); 
-write_data(0x02);   
-
-write_command(0xE9); 
-write_data(0x00);
- 
-write_command(0XF7);    
-write_data(0xA9); 
-write_data(0x51); 
-write_data(0x2C); 
-write_data(0x82);
-
-//**********set rgb interface mode******************
-write_command(0XB0);  //Interface Mode Control  
-write_data(0x00);  //set DE,HS,VS,PCLK polarity
-
-write_command(0xB6); 
-write_data(0x30); //30 set rgb
-write_data(0x02); //GS,SS 02Ł¬42
-write_data(0x3B); 
- /**************************************************/ 
-write_command(0x2A); //Frame rate control
-write_data(0x00);
-write_data(0x00);
-write_data(0x01);
-write_data(0x3F);
-
-write_command(0x2B); //Display function control
-write_data(0x00);
-write_data(0x00);
-write_data(0x01);
-write_data(0xDF);
-
-write_command(0x21);
-
-write_command(0x11);
-delay(120);
-write_command(0x29); //display on
-write_command(0x2c); 
-	   
-}
-//******************************************
-void LCD_Enter_Standby(void)
-{
-   write_command(0x28);//display off
-   delay(10);
-  write_command(0x10);
-   delay(120);
- //  RGB_OFF();
-   }
-void LCD_Exit_Standby (void)
-{
- //  RGB_ON();
-   delay(10);
-   write_command(0x11);// Exit Sleep/ Standby mode
-   delay(120);
-   write_command(0x29);
-  }
 
 
 void start1 ()
 {
 //	cmd( 0xE9 );
 //	data( 0x20 );
-    digitalWrite(DCX, HIGH);       
-    digitalWrite(RES, HIGH);                     
-    digitalWrite(CSX, HIGH);      
-    digitalWrite(WRX, HIGH);     
-    digitalWrite(CSX, LOW);          
+ digitalWrite(DCX, HIGH);       
+ digitalWrite(RES, HIGH);                     
+ digitalWrite(CSX, HIGH);      
+ digitalWrite(WRX, HIGH);     
+ digitalWrite(CSX, LOW);          
     
  cmd( 0x11 );   //#Exit Sleep
  delay(200); 
@@ -996,42 +1090,42 @@ write_data(0x82);
   
   
   
-cmd( 0xC8 );     //# Set Gamma
-data( 0x04 );
-data( 0x67 );
-data( 0x35 );
-data( 0x04 );
-data( 0x08 );
-data( 0x06 );
-data( 0x24 );
-data( 0x01 );
-data( 0x37 );
-data( 0x40 );
-data( 0x03 );
-data( 0x10 );
-data( 0x08 );
-data( 0x80 );
-data( 0x00 );
+    cmd( 0xC8 );     //# Set Gamma
+    data( 0x04 );
+    data( 0x67 );
+    data( 0x35 );
+    data( 0x04 );
+    data( 0x08 );
+    data( 0x06 );
+    data( 0x24 );
+    data( 0x01 );
+    data( 0x37 );
+    data( 0x40 );
+    data( 0x03 );
+    data( 0x10 );
+    data( 0x08 );
+    data( 0x80 );
+    data( 0x00 );
 
-  cmd( 0x2A );  //column address
-data( 0x00 );
-data( 0x00 );
-data( 0x00 );
-data( 0xeF );
+    cmd( 0x2A );  //column address
+    data( 0x00 );
+    data( 0x00 );
+    data( 0x00 );
+    data( 0xeF );
   
-cmd( 0x2B );   //page address
-data( 0x00 );
-data( 0x00 );
-data( 0x01 );
-data( 0x8F );
+    cmd( 0x2B );   //page address
+    data( 0x00 );
+    data( 0x00 );
+    data( 0x01 );
+    data( 0x8F );
   
   
 
   
   
   
-cmd( 0x29 ); //#display on
-cmd( 0x2C ); //#display on
+    cmd( 0x29 ); //#display on
+    cmd( 0x2C ); //#display on
 
  //   data(0xee);
  //    data(0);   
@@ -1045,64 +1139,44 @@ cmd( 0x2C ); //#display on
 }  
 
 
-void TFT_Set_Address(int x1,int y1,int x2, int y2)
+void TFT_Set_Address(unsigned int x1,unsigned int y1,unsigned int x2, unsigned int y2)
 {
-  x1&=0x1FF;
-  y1&=0x1FF;
-  x2&=0x1FF;
-  y2&=0x1FF;
-  
+ 
      digitalWrite(CSX, LOW);      
-	cmd(0x2b);     //# Set_page_address
-	data((unsigned char)(y1>>8));
-	data((unsigned char)y1);
-	data((unsigned char)(y2>>8));
-	data((unsigned char)y2);
+     cmd(0x2b);     //# Set_page_address
+     digitalWrite(DCX, HIGH);  
+     Write_DataFast(y1);
+     Write_DataFast(y2);
      digitalWrite(CSX, HIGH);   
   
-  digitalWrite(CSX, LOW); 
-    cmd(0x2a);  // # Set_column_address
-	data((unsigned char)(x1>>8));
-	data((unsigned char)x1);
-	data((unsigned char)(x2>>8));
-	data((unsigned char)x2);
-   digitalWrite(CSX, HIGH);       
-   digitalWrite(DCX, HIGH);
-   digitalWrite(WRX, HIGH);   
+     digitalWrite(CSX, LOW); 
+     cmd(0x2a);  // # Set_column_address
+     digitalWrite(DCX, HIGH);  
+     Write_DataFast(x1);
+     Write_DataFast(x2);
+ 
+     digitalWrite(CSX, HIGH);       
+     digitalWrite(DCX, HIGH);
+     digitalWrite(WRX, HIGH);   
 }
 
 
   
 void TFT_Fill_Box(unsigned int x,unsigned int y,unsigned int x1,unsigned int y1,unsigned int color)
 {  
-  unsigned int i,j;
-
+    unsigned int i,j;
   TFT_Set_Address(y,x,y1,x1);
   digitalWrite(CSX, LOW);  
   cmd(0x2c);                      // # Write_memory_start
+  digitalWrite(DCX, HIGH);  
   for(i = y; i <= y1; i++)
-  {
-    
     for(j = x; j <= x1; j++)
-    {
-      // digitalWrite(WRX, LOW);  
-     
-      
-           Write_Data2(color);
-    //  data((color>>8) & 0xFF);
-     //   data(color & 0xFF);
+           Write_DataFast(color);
 
-      
- 
-     //   data((color>>8) & 0xFF);
-    //   digitalWrite(WRX, HIGH);  
-    }
-    
-  }
-    digitalWrite(CSX, HIGH); 
+  digitalWrite(CSX, HIGH); 
 }
 
-void TFT_Fill(unsigned int color)
+void TFT_Clear(unsigned int color)
 {
  TFT_Fill_Box(0,0,479,319,color);   
 }
@@ -1146,7 +1220,7 @@ if (DimFont == 24)
 
        digitalWrite(CSX, LOW); 
        cmd(0x2c);                      // # Write_memory_start
-     
+       digitalWrite(DCX, HIGH);  
     
        dd=0;
            for(k=0;k<2;k++) 
@@ -1155,12 +1229,12 @@ if (DimFont == 24)
              {        
                 for(i=0;i<24;i++)
                 { 
-                //  delay(50);
+                
                  
                   if ((font24x24[((23-i)*3) + (k)] >> (7-j))  & 1)
-                    Write_Data2(Fcolor);
+                    Write_DataFast(Fcolor);
                   else
-                    Write_Data2(Bcolor);
+                    Write_DataFast(Bcolor);
                     
                   dd++;  
                   if (dd > 7)
@@ -1222,7 +1296,7 @@ if (((DimFont == 32) || (DimFont == 64)) && (C != ' '))  //32x48
   
       digitalWrite(CSX, LOW); 
       cmd(0x2c);                      // # Write_memory_start
-    
+     digitalWrite(DCX, HIGH);  
 	     for(i = 0; i < rows; i++)
                 {
 		
@@ -1234,15 +1308,15 @@ if (((DimFont == 32) || (DimFont == 64)) && (C != ' '))  //32x48
        				{        
            				if (font32x32[(47-k)*rows+i] >> (7-j) & 1)
                                         {  
-             				  Write_Data2(Fcolor);
+             				  Write_DataFast(Fcolor);
                                           if (DimFont == 64)
-                                           Write_Data2(Fcolor);   
+                                           Write_DataFast(Fcolor);   
                                         }  
          				 else
                                          {     
-             				  Write_Data2(Bcolor);
+             				  Write_DataFast(Bcolor);
                                           if (DimFont == 64)
-                                           Write_Data2(Bcolor); 
+                                           Write_DataFast(Bcolor); 
                                          } 
        				}
                              
@@ -1272,38 +1346,20 @@ if(DimFont == 8)
      TFT_Set_Address(x,y,x+7,y+7);
      digitalWrite(CSX, LOW); 
      cmd(0x2c);                      // # Write_memory_start
- 
+     digitalWrite(DCX, HIGH);  
      for(i = 0; i <= 7; i++)
      {
        for(k = 0; k <= 7; k++)
        {
          if ((font8x8[k] >> (7-i) ) & 1)
-           Write_Data2(Fcolor);
+           Write_DataFast(Fcolor);
          else
-           Write_Data2(Bcolor);
+           Write_DataFast(Bcolor);
        }
    
      }  
   
-  /*
-    for(i = 0; i <= 7; i++)
-     {
-       for(k = 0; k <= 7; k++)
-       {
-          print1 = (font8x8[i] & 0x80);
-          print2 = print1 >>7;
-          if(print2 == 1)
-          {
-             Write_Data(Fcolor);
-          }
-          else
-          {
-             Write_Data(Bcolor);
-          }
-          font8x8[i] = font8x8[i] << 1;
-       }
-     }
-  */  
+  
   
      digitalWrite(CSX, HIGH); 
 }
@@ -1322,30 +1378,27 @@ else if(DimFont == 16)
       font16x16[15-k] = font16x16[15-k] + *PtrFont;
       PtrFont++;
      }
-
-    // TFT_CS = 0;
 		
      TFT_Set_Address(x,y,x+15,y+15);
      digitalWrite(CSX, LOW); 
      cmd(0x2c);                      // # Write_memory_start
-        for(i = 0; i <= 15; i++)						// lewo/prawo
+      digitalWrite(DCX, HIGH);  
+     for(i = 0; i <= 15; i++)						// lewo/prawo
       {
-		//	 font16x16[i]=0x34;
+		
        for(k = 0; k <= 15; k++)
        {
-     //   print3 = (font16x16[i] & 0x8000);
-     //   print4 = print3 >>15;
 
         if((font16x16[k] >> (15-i)) & 1)   //góra/dól
         {
-           Write_Data2(Fcolor);
+           Write_DataFast(Fcolor);
         }
         else
         {
-           Write_Data2(Bcolor);
+           Write_DataFast(Bcolor);
         }
 
-      //  font16x16[i] = font16x16[i] << 1;
+
        }
      }
     // TFT_CS = 1;
@@ -1356,7 +1409,7 @@ else if(DimFont == 16)
   
 }
 
-void TFT_Text(char* S,unsigned int x,unsigned int y,unsigned int DimFont,unsigned int Fcolor,unsigned int Bcolor)
+void TFT_Text(char* S,unsigned int y,unsigned int x,unsigned int DimFont,unsigned int Fcolor,unsigned int Bcolor)
 {
 
 		 while (*S)
@@ -1385,59 +1438,42 @@ void TFT_Text(char* S,unsigned int x,unsigned int y,unsigned int DimFont,unsigne
 
 int main (void)
 {
- int count; 
+ 
   char buf[256];
   time_t t;
   struct tm tm;
-//#
-//# Main part
-//#
-  init();
 
-  
-  start1();
-  start2();
-//  LCD_init();
-//  LCD_Exit_Standby ();
+    init();
 
+    start1();
+    start2();
 
-    TFT_Fill(Black);    //fill region
- //   TFT_Set_Address(0,0,319,479);  //new region
+    TFT_Clear(Black);    //fill all with color
 
-    TFT_Text("1234",50,165,16,Green,Black);
-
-  
- //   for(;;);
-  
-    count=1088;
+    unsigned int count=0;
     for(;;)
     {
       delay(500);
-      digitalWrite(29, HIGH);
-  //    TFT_Fill(Green);    //fill region    
-       sprintf(buf,"%d%c",count++,0);
-          TFT_Text(buf,25,165,8,Red,Black);
-          TFT_Text(buf,240,20,24,Blue2,Black);  
+       digitalWrite(BLINK_LED, HIGH);     //blink, port 29
+       sprintf(buf,"%06d%c",count++,0);
+          TFT_Text(buf,165,25,8,Yellow,Black);
+          TFT_Text(buf,20,240,24,Blue2,Black);  
            t = time(NULL);
            tm = *localtime(&t); 
-          sprintf(buf,"%02d:%02d.%02d%c", tm.tm_hour, tm.tm_min, tm.tm_sec,0);
-                   TFT_Text(buf,180,20,32,Green,Black);  
-     //    TFT_Fill_Box(200,150,250,200,Red);   
+           sprintf(buf,"%02d:%02d.%02d%c", tm.tm_hour, tm.tm_min, tm.tm_sec,0);
+           TFT_Text(buf,20,180,32,Green,Black);  
+
       delay(500);
-      digitalWrite(29, LOW);       
-  //    TFT_Fill(Red);    //fill region   
-      
-      
-      
-    t = time(NULL);
-    tm = *localtime(&t);
+      digitalWrite(BLINK_LED, LOW);        //blink, port 29 
 
-               sprintf(buf,"%d-%d-%d %02d:%02d:%02d%c", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,0);
+      t = time(NULL);
+      tm = *localtime(&t);
 
-                TFT_Text(buf,290,40,16,White,Black);
-                sprintf(buf,"%d.0%c",count,0);
-                TFT_Text(buf,80,20,64,Magenta,Black);  
-           //    TFT_Fill_Box(200,150,250,200,Black);   
+                sprintf(buf,"%d-%d-%d %02d:%02d:%02d%c", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,0);
+                TFT_Text(buf,240,320-16,16,White,Black);
+                sprintf(buf,"%04d%c",count,0);
+                TFT_Text(buf,120,60,64,Magenta,Black);  
+
                 
                 if (count == 2000)
                 {  
@@ -1453,11 +1489,4 @@ int main (void)
   
     return 0;      
 }          
-          
-
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 
