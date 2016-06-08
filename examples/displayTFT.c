@@ -25,8 +25,9 @@
 #include <sys/ioctl.h>
 
 
-#define FAST_DATA   // my own dedicated fast port write, 4-5 time faster
-                    // port are fixed
+
+//#define FAST_DATA   // my own dedicated fast port write instead of the typical WiringOP, 4-5 time faster
+                      // Warning: port are fixed, if you have other change carefully
                     
 
 #define BLINK_LED 29
@@ -1055,13 +1056,18 @@ void TFT_Set_Address(unsigned int x1,unsigned int y1,unsigned int x2, unsigned i
      StartWrite(0x2b); //# Set_page_address
      Write_DataFast(y1);
      Write_DataFast(y2);
-     set_CS(HIGH);   
+ //    set_CS(HIGH);   
   
-     set_CS(LOW); 
+ //    set_CS(LOW); 
      StartWrite(0x2a);  // # Set_column_address
      Write_DataFast(x1);
      Write_DataFast(x2);
 
+     StartWrite(0x2b); //# Set_page_address again , without this does not always set the address correctly, I do not know why
+     Write_DataFast(y1);
+     Write_DataFast(y2);
+     
+     
      set_CS(HIGH);        
 }
 
@@ -1101,11 +1107,8 @@ unsigned char k,i,j;
 
 if (DimFont == 24)
 {
-
         TFT_Set_Address(x,y,x+23,y+23);
-
 	Cptrfont = (C-'0')*72;
-
         set_CS(LOW); 
         StartWrite(0x2c);                    // # Write_memory_start
 
@@ -1209,10 +1212,8 @@ if(DimFont == 8)
            Write_DataFast(Fcolor);
          else
            Write_DataFast(Bcolor);
-       }
-   
+       }  
      }  
-
      set_CS(HIGH); 
 }
 
@@ -1438,37 +1439,43 @@ int main (void)
     InitLCD();
 
 
+    
     TFT_Clear(Black);    //fill all with color
     
-    TFT_Dot(2,310,Cyan);
-    TFT_Line(5,5,475,315,Cyan);
+
+    TFT_Line(20,300,460,300,Cyan);
     TFT_Circle(350,230,40,1,Red);   //with fill
  
 
-    unsigned int count=0;
+    
+    
+    
+    
+    int count=0;
     for(;;)
     {
         delay(500);      
         Led29(HIGH);
 
-          sprintf(buf,"%06d%c",count++,0);
+          sprintf(buf,"TFT ILI9488 Test");
           TFT_Text(buf,165,25,8,Yellow,Black);
-          TFT_Text(buf,20,240,24,Blue2,Black);  
+         // sprintf(buf,"%04d",count,0);
+          count++;
+        //  TFT_Text(buf,20,240,24,Blue2,Black);  
           t = time(NULL);
           tm = *localtime(&t); 
-          sprintf(buf,"%02d:%02d.%02d%c", tm.tm_hour, tm.tm_min, tm.tm_sec,0);
+          sprintf(buf,"%02d:%02d.%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
           TFT_Text(buf,20,180,32,Green,Black);  
 
       delay(500);
       Led29(LOW);
       
-        t = time(NULL);
-        tm = *localtime(&t);
-
-        sprintf(buf,"%d-%d-%d %02d:%02d:%02d%c", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,0);
-        TFT_Text(buf,240,320-16,16,White,Black);
-        sprintf(buf,"%02d:%02d.%02d%c", tm.tm_hour, tm.tm_min, tm.tm_sec,0);
-        TFT_Text(buf,10,60,64,Magenta,Black);  
+          t = time(NULL);
+          tm = *localtime(&t);
+          sprintf(buf,"%d-%d-%d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+          TFT_Text(buf,140,320-16,16,White,Black);
+          sprintf(buf,"%02d:%02d.%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
+          TFT_Text(buf,10,60,64,Magenta,Black);  
 
     }
   
