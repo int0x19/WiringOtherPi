@@ -1,6 +1,6 @@
 /* 
  * File:   displayTFT.c
- * Author: mariuszb
+ * Author: mariuszb /flexiti
  *
  * Created on 3 czerwca 2016, 08:51
  */
@@ -26,7 +26,7 @@
 
 
 
-//#define FAST_DATA   // my own dedicated fast port write instead of the typical WiringOP, 4-5 time faster
+//#define FAST_DATA   // my own dedicated fast port write instead of the typical WiringOP, 5 time faster
                       // Warning: port are fixed, if you have other change carefully
                     
 
@@ -56,6 +56,10 @@ int pins[16] = {3,4,5,12,6,13,14,10,7,1,0,11};  //all used
 
 int pinsD[8] = {3,4,5,12,6,13,14,10};  //data only pins
 
+
+//
+// fonts 
+// 
 const char Font24[] =   //16x24  only digits
 
 {
@@ -582,7 +586,7 @@ void writel1(uint32_t val, uint32_t addr)
 }
 
 
-void Write_DataFast(unsigned int Fcolor)   //write 2 bytes of color
+void send_data_int(unsigned int Fcolor)   //write 2 bytes of color
  {
  #ifdef FAST_DATA 
     uint32_t regval = 0;
@@ -606,10 +610,10 @@ void Write_DataFast(unsigned int Fcolor)   //write 2 bytes of color
     regval += (Fcolor >> 10) & 4; //bit 2
     regval += (Fcolor >> 5) & 8;  //3
     regval &= 0xFFFFFFFD;   //strobe
-    writel1(regval, phyaddr);
+    writel1(regval, phyaddr); 
     regval |= 2;
     writel1(regval, phyaddr);  
- 
+    
 // color low    
     
     phyaddr = SUNXI_GPIO_BASE + (2 * 36) + 0x10; // +0x10 -> data reg C
@@ -629,9 +633,10 @@ void Write_DataFast(unsigned int Fcolor)   //write 2 bytes of color
     regval += (Fcolor >> 2) & 4; //bit 2
     regval += (Fcolor << 3) & 8;  //3
     regval &= 0xFFFFFFFD;   //strobe
-    writel1(regval, phyaddr);
+    writel1(regval, phyaddr); 
     regval |= 2;
     writel1(regval, phyaddr);     
+
     
 #else
     digitalWrite(3, (Fcolor >> 8) & 1); 
@@ -682,7 +687,7 @@ void set_CS(int status)
 
 
 
-void send_data (unsigned char byte)
+void send_data_byte (unsigned char byte)
 {
     
 #ifdef FAST_DATA
@@ -726,19 +731,7 @@ void send_data (unsigned char byte)
 
 }
 
-
-void cmd(unsigned char byte)
-{
-  digitalWrite(DCX, LOW);
-  send_data(byte);
-  digitalWrite(DCX, HIGH);
-}
-void write_command(unsigned char byte)
-{
-  cmd(byte);
-}
-
-void StartWrite(unsigned char byte)
+void send_cmd(unsigned char byte)
 {
     #ifdef FAST_DATA 
     uint32_t regval=0;
@@ -751,42 +744,20 @@ void StartWrite(unsigned char byte)
     regval &= 0xFFFFBFFF;             //DC low
     writel1(regval, phyaddr);
     
-    send_data (byte);
+    send_data_byte (byte);
     
     regval = readl1(phyaddr);    
     regval |= 0x4000;            //DC high
     writel1(regval, phyaddr);    
   
+    
 #else
-        cmd(byte);
+  digitalWrite(DCX, LOW);
+  send_data_byte(byte);
+  digitalWrite(DCX, HIGH);
 #endif
 }
 
-
-
-void data(unsigned char byte)
-{
-  digitalWrite(DCX, HIGH);  
-  send_data(byte);
-  digitalWrite(DCX, HIGH);
-}
-
-
-void write_data(unsigned char byte)
-{
-  data(byte);
-}
-
-
-void  Write_Data(unsigned int Fcolor)
- {
-   digitalWrite(DCX, HIGH);  
-   data((unsigned char)(Fcolor & 0xFF));
-   data((unsigned char)((Fcolor >>8) & 0xFF));
-   digitalWrite(DCX, HIGH);
- }
-
- 
 
 void Init() {
 int x;
@@ -823,65 +794,59 @@ int x;
 
 void InitLCD ()
 {
-//	cmd( 0xE9 );
-//	data( 0x20 );
- digitalWrite(DCX, HIGH);       
- digitalWrite(RES, HIGH);                     
- digitalWrite(CSX, HIGH);      
- digitalWrite(WRX, HIGH);     
- digitalWrite(CSX, LOW);          
-    
- cmd( 0x11 );   //#Exit Sleep
- delay(200); 
- 
-write_command(0xE0); 
-write_data(0x00); 
-write_data(0x04); 
-write_data(0x0E); 
-write_data(0x08); 
-write_data(0x17); 
-write_data(0x0A); 
-write_data(0x40); 
-write_data(0x79); 
-write_data(0x4D); 
-write_data(0x07); 
-write_data(0x0E); 
-write_data(0x0A); 
-write_data(0x1A); 
-write_data(0x1D); 
-write_data(0x0F);  
 
-write_command(0xE1); 
-write_data(0x00); 
-write_data(0x1B); 
-write_data(0x1F); 
-write_data(0x02); 
-write_data(0x10); 
-write_data(0x05); 
-write_data(0x32); 
-write_data(0x34); 
-write_data(0x43); 
-write_data(0x02); 
-write_data(0x0A); 
-write_data(0x09); 
-write_data(0x33); 
-write_data(0x37); 
-write_data(0x0F); 
+
+set_CS(LOW);   
+send_cmd( 0x11 );   //#Exit Sleep
+delay(200); 
+send_cmd(0xE0); 
+send_data_byte(0x00); 
+send_data_byte(0x04); 
+send_data_byte(0x0E); 
+send_data_byte(0x08); 
+send_data_byte(0x17); 
+send_data_byte(0x0A); 
+send_data_byte(0x40); 
+send_data_byte(0x79); 
+send_data_byte(0x4D); 
+send_data_byte(0x07); 
+send_data_byte(0x0E); 
+send_data_byte(0x0A); 
+send_data_byte(0x1A); 
+send_data_byte(0x1D); 
+send_data_byte(0x0F);  
+
+send_cmd(0xE1); 
+send_data_byte(0x00); 
+send_data_byte(0x1B); 
+send_data_byte(0x1F); 
+send_data_byte(0x02); 
+send_data_byte(0x10); 
+send_data_byte(0x05); 
+send_data_byte(0x32); 
+send_data_byte(0x34); 
+send_data_byte(0x43); 
+send_data_byte(0x02); 
+send_data_byte(0x0A); 
+send_data_byte(0x09); 
+send_data_byte(0x33); 
+send_data_byte(0x37); 
+send_data_byte(0x0F); 
   
   
   
-cmd( 0xD1 );   //  # VCOM Control                                                                     
-data( 0x00 );   // #    SEL/VCM                                                                      
-data( 0x0C );  //  #    VCM    0c                                                                  
-data( 0x0F );  //  #    VDV    0f                                                              
+send_cmd( 0xD1 );   //  # VCOM Control                                                                     
+send_data_byte( 0x00 );   // #    SEL/VCM                                                                      
+send_data_byte( 0x0C );  //  #    VCM    0c                                                                  
+send_data_byte( 0x0F );  //  #    VDV    0f                                                              
 
-cmd( 0xD0 );   //  # Power_Setting                                                                     
-data( 0x07 );  //  #    VC                                                                      
-data( 0x04 );  //  #    BT     04                                                             
-data( 0x00 );  //  #    VRH    00                                                                  
+send_cmd( 0xD0 );   //  # Power_Setting                                                                     
+send_data_byte( 0x07 );  //  #    VC                                                                      
+send_data_byte( 0x04 );  //  #    BT     04                                                             
+send_data_byte( 0x00 );  //  #    VRH    00                                                                  
 
-cmd( 0x36 );  //   # Set_address_mode
-data( 0x48 );  //
+send_cmd( 0x36 );  //   # Set_address_mode
+send_data_byte( 0x48 );  //
 //# 0x48 = 0b01001000
 ///# 0 - top to bottom
 ///# 1 - left to right
@@ -892,202 +857,167 @@ data( 0x48 );  //
 //# 0 - no hflip
 //# 0 - no flip
 
-cmd( 0x3A );     //# Set pixel format
-data( 0x05 );    //DBI:16bit/pixel (65,536 colors)
+send_cmd( 0x3A );     //# Set pixel format
+send_data_byte( 0x05 );    //DBI:16bit/pixel (65,536 colors)
   
 
-cmd( 0x51 );    // #brignets 
-data( 0 );   
+send_cmd( 0x51 );    // #brignets 
+send_data_byte( 0 );   
   
-cmd( 0x53 );    // #brignets 
-data( 0 );     
+send_cmd( 0x53 );    // #brignets 
+send_data_byte( 0 );     
   
-cmd( 0x55 );    // # Addaptive brignets 
-data( 0); 
+send_cmd( 0x55 );    // # Addaptive brignets 
+send_data_byte( 0); 
   
-cmd( 0x5E );    // # Addaptive brignets 
-data( 0 );   
+send_cmd( 0x5E );    // # Addaptive brignets 
+send_data_byte( 0 );   
   
-//**********set rgb interface mode******************
-//cmd(0XB0);  //Interface Mode Control  
-//data(0x00);  //set DE,HS,VS,PCLK polarity
+  
+send_cmd(0xC0); 
+send_data_byte(0x18); 
+send_data_byte(0x16); 
 
-//cmd(0xB6); 
-//data(0x30); //30 set rgb
-//data(0x02); //GS,SS 02Ł¬42
-//data(0x3B);   
-//*************************************************  
-  
-write_command(0xC0); 
-write_data(0x18); 
-write_data(0x16); 
+send_cmd(0xC1); 
+send_data_byte(0x41); 
 
-write_command(0xC1); 
-write_data(0x41); 
-
-write_command(0xC5); 
-write_data(0x00); 
-write_data(0x1E); //VCOM
-write_data(0x80);   
-  
-/*  
-cmd( 0xC1 );     //# Display timing setting for normal/partial mode
-data( 0x10 );
-data( 0x10 );
-data( 0x02 );
-data( 0x02 );
-  
-cmd( 0xC0 );    // # Set Default Gamma
-data( 0x00 );
-data( 0x35 );
-data( 0x00 );
-data( 0x00 );
-data( 0x01 );
-data( 0x02 );
-*/  
+send_cmd(0xC5); 
+send_data_byte(0x00); 
+send_data_byte(0x1E); //VCOM
+send_data_byte(0x80);   
+ 
      
-write_command(0xC5); 
-write_data(0x00); 
-write_data(0x1E); //VCOM
-write_data(0x80); 
-    
-//cmd( 0xC5 );     //# Set frame rate
-//data( 0x04 );   //72Hz
-  
-cmd( 0xD2 );     //# Power setting
-data( 0x01 );   //Gamma Driver Amplifier:1.00, Source Driver Amplifier: 1.00
-data( 0x44 );
+send_cmd(0xC5); 
+send_data_byte(0x00); 
+send_data_byte(0x1E); //VCOM
+send_data_byte(0x80); 
  
   
-write_command(0xC0); 
-write_data(0x18); 
-write_data(0x16); 
+send_cmd( 0xD2 );     //# Power setting
+send_data_byte( 0x01 );   //Gamma Driver Amplifier:1.00, Source Driver Amplifier: 1.00
+send_data_byte( 0x44 );
+ 
+  
+send_cmd(0xC0); 
+send_data_byte(0x18); 
+send_data_byte(0x16); 
 
-write_command(0xC1); 
-write_data(0x41); 
+send_cmd(0xC1); 
+send_data_byte(0x41); 
 
-write_command(0xC5); 
-write_data(0x00); 
-write_data(0x1E); //VCOM
-write_data(0x80); 
+send_cmd(0xC5); 
+send_data_byte(0x00); 
+send_data_byte(0x1E); //VCOM
+send_data_byte(0x80); 
   
   
   //---
-write_command(0xB1);   //Frame rate 70HZ  
-write_data(0xB0); 
+send_cmd(0xB1);   //Frame rate 70HZ  
+send_data_byte(0xB0); 
 
-write_command(0xB4); 
-write_data(0x02);   
+send_cmd(0xB4); 
+send_data_byte(0x02);   
 
-write_command(0xB9); //PWM Settings for Brightness Control
-write_data(0x01);// Disabled by default.
-write_data(0xFF); //0xFF = Max brightness
-write_data(0xFF);
-write_data(0x18);
+send_cmd(0xB9); //PWM Settings for Brightness Control
+send_data_byte(0x01);// Disabled by default.
+send_data_byte(0xFF); //0xFF = Max brightness
+send_data_byte(0xFF);
+send_data_byte(0x18);
   
   
   
-write_command(0xE9); 
-write_data(0x00);
+send_cmd(0xE9); 
+send_data_byte(0x00);
  
-write_command(0XF7);    
-write_data(0xA9); 
-write_data(0x51); 
-write_data(0x2C); 
-write_data(0x82);
+send_cmd(0XF7);    
+send_data_byte(0xA9); 
+send_data_byte(0x51); 
+send_data_byte(0x2C); 
+send_data_byte(0x82);
 //---  
   
   
   
-    cmd( 0xC8 );     //# Set Gamma
-    data( 0x04 );
-    data( 0x67 );
-    data( 0x35 );
-    data( 0x04 );
-    data( 0x08 );
-    data( 0x06 );
-    data( 0x24 );
-    data( 0x01 );
-    data( 0x37 );
-    data( 0x40 );
-    data( 0x03 );
-    data( 0x10 );
-    data( 0x08 );
-    data( 0x80 );
-    data( 0x00 );
+    send_cmd( 0xC8 );     //# Set Gamma
+    send_data_byte( 0x04 );
+    send_data_byte( 0x67 );
+    send_data_byte( 0x35 );
+    send_data_byte( 0x04 );
+    send_data_byte( 0x08 );
+    send_data_byte( 0x06 );
+    send_data_byte( 0x24 );
+    send_data_byte( 0x01 );
+    send_data_byte( 0x37 );
+    send_data_byte( 0x40 );
+    send_data_byte( 0x03 );
+    send_data_byte( 0x10 );
+    send_data_byte( 0x08 );
+    send_data_byte( 0x80 );
+    send_data_byte( 0x00 );
 
-    cmd( 0x2A );  //column address
-    data( 0x00 );
-    data( 0x00 );
-    data( 0x00 );
-    data( 0xeF );
+    send_cmd( 0x2A );  //column address
+    send_data_byte( 0x00 );
+    send_data_byte( 0x00 );
+    send_data_byte( 0x00 );
+    send_data_byte( 0xeF );
   
-    cmd( 0x2B );   //page address
-    data( 0x00 );
-    data( 0x00 );
-    data( 0x01 );
-    data( 0x8F );
+    send_cmd( 0x2B );   //page address
+    send_data_byte( 0x00 );
+    send_data_byte( 0x00 );
+    send_data_byte( 0x01 );
+    send_data_byte( 0x8F );
   
   
+    send_cmd( 0x29 ); //#display on
+    send_cmd( 0x2C ); //#display on
 
-  
-  
-  
-    cmd( 0x29 ); //#display on
-    cmd( 0x2C ); //#display on
-
- //   data(0xee);
- //    data(0);   
-    digitalWrite(CSX, HIGH);    
-    digitalWrite(DCX, HIGH);       
-    digitalWrite(RES, HIGH);                     
-    digitalWrite(CSX, HIGH);      
-    digitalWrite(WRX, HIGH);     
- 
+    set_CS(HIGH);    
+    
  
 }  
 
-
+//
+// set region to write data
+//
 void TFT_Set_Address(unsigned int x1,unsigned int y1,unsigned int x2, unsigned int y2)
 {
  
      set_CS(LOW); 
      
-     StartWrite(0x2b); //# Set_page_address
-     Write_DataFast(y1);
-     Write_DataFast(y2);
- //    set_CS(HIGH);   
-  
- //    set_CS(LOW); 
-     StartWrite(0x2a);  // # Set_column_address
-     Write_DataFast(x1);
-     Write_DataFast(x2);
+     send_cmd(0x2b); //# Set_page_address
+     send_data_int(y1);
+     send_data_int(y2);
 
-     StartWrite(0x2b); //# Set_page_address again , without this does not always set the address correctly, I do not know why
-     Write_DataFast(y1);
-     Write_DataFast(y2);
-     
+     send_cmd(0x2a);  // # Set_column_address
+     send_data_int(x1);
+     send_data_int(x2);
+
      
      set_CS(HIGH);        
 }
 
 
-  
+//
+// fill box with color
+//
 void TFT_Box(unsigned int x,unsigned int y,unsigned int x1,unsigned int y1,unsigned int color)
 {  
     unsigned int i,j;
   TFT_Set_Address(y,x,y1,x1);
 
   set_CS(LOW); 
-  StartWrite(0x2c);                      // # Write_memory_start
+  send_cmd(0x2c);                      // # Write_memory_start
  
   for(i = y; i <= y1; i++)
     for(j = x; j <= x1; j++)
-           Write_DataFast(color);
+           send_data_int(color);
 
   set_CS(HIGH); 
 }
 
+//
+// fill all display
+//
 void TFT_Clear(unsigned int color)
 {
  TFT_Box(0,0,479,319,color);   
@@ -1110,7 +1040,7 @@ if (DimFont == 24)
         TFT_Set_Address(x,y,x+23,y+23);
 	Cptrfont = (C-'0')*72;
         set_CS(LOW); 
-        StartWrite(0x2c);                    // # Write_memory_start
+        send_cmd(0x2c);                    // # Write_memory_start
 
            for(k=0;k<2;k++) 
            {
@@ -1119,9 +1049,9 @@ if (DimFont == 24)
                 for(i=0;i<24;i++)
                 { 
                  if ((Font24[Cptrfont+((23-i)*3) + (k)] >> (7-j))  & 1)                     
-                    Write_DataFast(Fcolor);
+                    send_data_int(Fcolor);
                   else
-                    Write_DataFast(Bcolor);
+                    send_data_int(Bcolor);
                  
                 }  
              }
@@ -1162,7 +1092,7 @@ if (((DimFont == 32) || (DimFont == 64)) && (C != ' '))  //32x48
               Cptrfont=1920+96; 
 
       set_CS(LOW); 
-      StartWrite(0x2c);                     // # Write_memory_start
+      send_cmd(0x2c);                     // # Write_memory_start
 
 	     for(i = 0; i < rows; i++)
                 {
@@ -1175,15 +1105,15 @@ if (((DimFont == 32) || (DimFont == 64)) && (C != ' '))  //32x48
        				{        
                                           if (SegmentFont[Cptrfont+(47-k)*rows+i] >> (7-j) & 1)
                                         {  
-             				  Write_DataFast(Fcolor);
+             				  send_data_int(Fcolor);
                                           if (DimFont == 64)
-                                           Write_DataFast(Fcolor);   
+                                            send_data_int(Fcolor);   
                                         }  
          				 else
                                          {     
-             				  Write_DataFast(Bcolor);
+             				  send_data_int(Bcolor);
                                           if (DimFont == 64)
-                                           Write_DataFast(Bcolor); 
+                                           send_data_int(Bcolor); 
                                          } 
        				}
                              
@@ -1202,16 +1132,16 @@ if(DimFont == 8)
      TFT_Set_Address(x,y,x+7,y+7);
 
      set_CS(LOW); 
-     StartWrite(0x2c);                     // # Write_memory_start
+     send_cmd(0x2c);                     // # Write_memory_start
 
      for(i = 0; i <= 7; i++)
      {
        for(k = 0; k <= 7; k++)
        {
            if ((FONT_8x8[Cptrfont+7-k] >> (7-i) ) & 1)
-           Write_DataFast(Fcolor);
+             send_data_int(Fcolor);
          else
-           Write_DataFast(Bcolor);
+            send_data_int(Bcolor);
        }  
      }  
      set_CS(HIGH); 
@@ -1230,7 +1160,7 @@ else if(DimFont == 16)
      TFT_Set_Address(x,y,x+15,y+15);
     // digitalWrite(CSX, LOW); 
      set_CS(LOW); 
-     StartWrite(0x2c);                   // # Write_memory_start
+     send_cmd(0x2c);                   // # Write_memory_start
 
      for(i = 0; i <= 15; i++)						// left/right
       {		
@@ -1238,9 +1168,9 @@ else if(DimFont == 16)
        {
 
         if((font16x16[k] >> (15-i)) & 1)   //góra/dól
-           Write_DataFast(Fcolor);
+           send_data_int(Fcolor);
         else
-           Write_DataFast(Bcolor);
+           send_data_int(Bcolor);
 
 
 
@@ -1307,8 +1237,8 @@ void TFT_Dot(unsigned int x,unsigned int y,unsigned int color)
 
   TFT_Set_Address(y,x,y,x);
   set_CS(LOW); 
-  StartWrite(0x2c);                   // # Write_memory_start
-  Write_DataFast(color);
+  send_cmd(0x2c);                   // # Write_memory_start
+  send_data_int(color);
   set_CS(HIGH);  
  
 }
@@ -1434,13 +1364,13 @@ int main (void)
   char buf[256];
   time_t t;
   struct tm tm;
-
+ 
+  
     Init();
     InitLCD();
 
-
     
-    TFT_Clear(Black);    //fill all with color
+    TFT_Clear(Black);
     
 
     TFT_Line(20,300,460,300,Cyan);
@@ -1459,9 +1389,9 @@ int main (void)
 
           sprintf(buf,"TFT ILI9488 Test");
           TFT_Text(buf,165,25,8,Yellow,Black);
-         // sprintf(buf,"%04d",count,0);
+          sprintf(buf,"%04d",count);
           count++;
-        //  TFT_Text(buf,20,240,24,Blue2,Black);  
+          TFT_Text(buf,20,240,24,Blue2,Black);  
           t = time(NULL);
           tm = *localtime(&t); 
           sprintf(buf,"%02d:%02d.%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
