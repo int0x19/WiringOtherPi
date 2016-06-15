@@ -29,7 +29,7 @@
 
 
 
-//#define FAST_DATA   // my own dedicated fast port write instead of the typical WiringOP, 5 time faster
+//#define FAST_DATA   // my own dedicated fast port write instead of the typical WiringOP, now is 10 time faster
                       // Warning: port are fixed, if you have other change carefully
 
 //#define DS_1820      // if DS1820 is connected (data on pin 37)
@@ -60,32 +60,25 @@
 #define	BLOCK_SIZE		(4*1024)
 #define GPIO_BASE_BP		(0x01C20000)
 
+#define REG_A (0x810>>2)
+#define REG_B ((0x810+1*36)>>2)
+#define REG_C ((0x810+2*36)>>2)
+#define REG_D ((0x810+3*36)>>2)
+#define REG_E ((0x810+4*36)>>2)
+#define REG_F ((0x810+5*36)>>2)
+#define REG_G ((0x810+6*36)>>2)
 
 int pins[16] = {3,4,5,12,6,13,14,10,7,1,0,11};  //all used
 
 int pinsD[8] = {3,4,5,12,6,13,14,10};  //data only pins
+
+//modprobe fbtft_device name=itdb28 gpios=reset:11,dc:1,wr:0,cs:7,db00:3,db01:4,db02:5,db03:12,db04:6,db05:13,db06:14,db07:10
 
 
 static volatile uint32_t *gpio1 ;
 int   fd ;
 
  char devPath[128]; // Path to DS1820 device
-
- uint32_t readl1(uint32_t addr)
-{
-	  uint32_t val = 0;
-	  uint32_t mmap_base = (addr & ~MAP_MASK);
-	  uint32_t mmap_seek = ((addr - mmap_base) >> 2);
-	  val = *(gpio1 + mmap_seek);
-	  return val;
-	
-}
-void writel1(uint32_t val, uint32_t addr)
-{
-	  uint32_t mmap_base = (addr & ~MAP_MASK);
-	  uint32_t mmap_seek = ((addr - mmap_base) >> 2);
-	  *(gpio1 + mmap_seek) = val;
-}
 
 
 void send_data_int(unsigned int Fcolor)   //write 2 bytes of color
@@ -95,49 +88,48 @@ void send_data_int(unsigned int Fcolor)   //write 2 bytes of color
 // ----------------------------------------------------------------------------- 
 // color high  
 // -----------------------------------------------------------------------------    
-    uint32_t phyaddr = SUNXI_GPIO_BASE + (2 * 36) + 0x10; // +0x10 -> data reg C
-    regval = readl1(phyaddr);
+
+    regval = *(gpio1 + REG_C); 
     regval &= 0xFFFFFF60;
     regval += (Fcolor >> 11) & 1; //bit 0
-    regval += (Fcolor >> 12) & 2;  //1
-    regval += (Fcolor >> 12) & 4;  //2
-    regval += (Fcolor >> 12) & 8;  //3
+    regval += (Fcolor >> 12) & 0xE;  //&2 1  
+   // regval += (Fcolor >> 12) & 4;  //2
+  //  regval += (Fcolor >> 12) & 8;  //3
     regval += (Fcolor >> 5) & 0x10;  //4
     regval += (Fcolor >> 3) & 0x80;  //7
-    writel1(regval, phyaddr);
+    *(gpio1 + REG_C) = regval;
     
-    phyaddr = SUNXI_GPIO_BASE  + 0x10; // +0x10 -> data reg A
-    regval = readl1(phyaddr);
+
+    regval = *(gpio1 + REG_A); 
     regval &= 0xFFFFFFF3;
     regval += (Fcolor >> 10) & 4; //bit 2
     regval += (Fcolor >> 5) & 8;  //3
     regval &= 0xFFFFFFFD;   //strobe
-    writel1(regval, phyaddr); 
-    regval |= 2;
-    writel1(regval, phyaddr);  
+    *(gpio1 + REG_A) = regval;
+    regval |= 2;            //strobe
+    *(gpio1 + REG_A) = regval;
     
 // color low    
-    
-    phyaddr = SUNXI_GPIO_BASE + (2 * 36) + 0x10; // +0x10 -> data reg C
-    regval = readl1(phyaddr);
+
+    regval = *(gpio1 + REG_C); 
     regval &= 0xFFFFFF60;
     regval += (Fcolor >> 3) & 1; //bit 0
-    regval += (Fcolor >> 4) & 2;  //1
-    regval += (Fcolor >> 4) & 4;  //2
-    regval += (Fcolor >> 4) & 8;  //3
+    regval += (Fcolor >> 4) & 0xE;  //&2 1
+  //  regval += (Fcolor >> 4) & 4;  //2
+  //  regval += (Fcolor >> 4) & 8;  //3
     regval += (Fcolor << 3) & 0x10;  //4
     regval += (Fcolor << 5) & 0x80;  //7
-    writel1(regval, phyaddr);
+    *(gpio1 + REG_C) = regval;
      
-    phyaddr = SUNXI_GPIO_BASE  + 0x10; // +0x10 -> data reg A
-    regval = readl1(phyaddr);
+
+    regval = *(gpio1 + REG_A); 
     regval &= 0xFFFFFFF3;
     regval += (Fcolor >> 2) & 4; //bit 2
     regval += (Fcolor << 3) & 8;  //3
     regval &= 0xFFFFFFFD;   //strobe
-    writel1(regval, phyaddr); 
-    regval |= 2;
-    writel1(regval, phyaddr);     
+    *(gpio1 + REG_A) = regval;
+    regval |= 2;            //strobe
+    *(gpio1 + REG_A) = regval;    
 
     
 #else
@@ -170,17 +162,18 @@ void set_CS(int status)
 {
 #ifdef FAST_DATA 
     uint32_t regval=0;
-    uint32_t phyaddr = 0;
+//    uint32_t phyaddr = 0;
 // ----------------------------------------------------------------------------- 
 // CS set/reset
 // -----------------------------------------------------------------------------    
-    phyaddr = SUNXI_GPIO_BASE + 0x10; // +0x10 -> data reg A
-    regval = readl1(phyaddr);
+
+    regval = *(gpio1 + REG_A);  
     if (status == LOW)
       regval &= 0xFFFFFFBF;
     else
       regval |= 0x40;
-    writel1(regval, phyaddr);
+
+    *(gpio1 + REG_A) = regval;
  
 #else 
    digitalWrite(CSX, status); 
@@ -194,26 +187,26 @@ void send_data_byte (unsigned char byte)
     
 #ifdef FAST_DATA
     uint32_t regval = 0;
-    uint32_t phyaddr = SUNXI_GPIO_BASE + (2 * 36) + 0x10; // +0x10 -> data reg C
-    regval = readl1(phyaddr);
+ 
+    regval = *(gpio1 + REG_C);  
     regval &= 0xFFFFFF60;
     regval += (byte >> 3) & 1; //bit 0
-    regval += (byte >> 4) & 2;  //1
-    regval += (byte >> 4) & 4;  //2
-    regval += (byte >> 4) & 8;  //3
+    regval += (byte >> 4) & 0xE;  // &2 1
+  //  regval += (byte >> 4) & 4;  //2
+  //  regval += (byte >> 4) & 8;  //3
     regval += (byte << 3) & 0x10;  //4
     regval += (byte << 5) & 0x80;  //7
-    writel1(regval, phyaddr);
+    *(gpio1 + REG_C) = regval;
     
-    phyaddr = SUNXI_GPIO_BASE  + 0x10; // +0x10 -> data reg A
-    regval = readl1(phyaddr);
+
+    regval = *(gpio1 + REG_A);  
     regval &= 0xFFFFFFF3;
     regval += (byte >> 2) & 4; //bit 2
     regval += (byte << 3) & 8;  //3
     regval &= 0xFFFFFFFD;   //strobe
-    writel1(regval, phyaddr);
-    regval |= 2;
-    writel1(regval, phyaddr);   
+    *(gpio1 + REG_A) = regval;
+    regval |= 2;            //strobe
+    *(gpio1 + REG_A) = regval;
       
 #else    
      
@@ -237,20 +230,20 @@ void send_cmd(unsigned char byte)
 {
     #ifdef FAST_DATA 
     uint32_t regval=0;
-    uint32_t phyaddr = 0;
+
 // ----------------------------------------------------------------------------- 
 // DC set/reset
 // -----------------------------------------------------------------------------    
-    phyaddr = SUNXI_GPIO_BASE + (3 * 36)+ 0x10; // +0x10 -> data reg D
-    regval = readl1(phyaddr);
+ 
+    regval = *(gpio1 + REG_D);  
     regval &= 0xFFFFBFFF;             //DC low
-    writel1(regval, phyaddr);
+    *(gpio1 + REG_D) = regval;
     
     send_data_byte (byte);
     
-    regval = readl1(phyaddr);    
+    regval = *(gpio1 + REG_D);
     regval |= 0x4000;            //DC high
-    writel1(regval, phyaddr);    
+    *(gpio1 + REG_D) = regval;
   
     
 #else
@@ -301,6 +294,116 @@ void InitLCD ()
 set_CS(LOW);   
 send_cmd( 0x11 );   //#Exit Sleep
 delay(200); 
+                                                         
+send_cmd( 0x36 );  //   # Set_address_mode
+
+send_cmd( 0x3A );     //# Set pixel format
+send_data_byte( 0x05 );    //DBI:16bit/pixel (65,536 colors)
+ 
+send_cmd( 0x36 );  //   # Set_address_mode
+send_data_byte( 0x48 );  //
+//# 0x48 = 0b01001000
+///# 0 - top to bottom
+///# 1 - left to right
+//# 0 - v/h reverse
+//# 0 - refresh top to bottom
+//# 1 - RGB or BGR  (here BGR order)
+//# 0 - <skip>
+//# 0 - no hflip
+//# 0 - no flip
+
+
+// all other are default
+/*
+send_cmd( 0x51 );    // #brignets 
+send_data_byte( 0 );   
+  
+send_cmd( 0x53 );    // #brignets 
+send_data_byte( 0 );     
+  
+send_cmd( 0x55 );    // # Addaptive brignets 
+send_data_byte( 0); 
+  
+send_cmd( 0x5E );    // # Addaptive brignets 
+send_data_byte( 0 );   
+ 
+
+
+send_cmd(0xB1);   //Frame rate 70HZ  
+send_data_byte(0xA1); 
+send_data_byte(0x12);
+
+send_cmd(0xB4); 
+send_data_byte(0x02);   
+
+send_cmd(0xB9); //PWM Settings for Brightness Control
+send_data_byte(0x01);// Disabled by default.
+send_data_byte(0xFF); //0xFF = Max brightness
+send_data_byte(0xFF);
+send_data_byte(0x18);
+
+  
+ 
+
+send_cmd(0xC0); 
+send_data_byte(0x18); 
+send_data_byte(0x16); 
+
+send_cmd(0xC1); 
+send_data_byte(0x41); 
+      
+send_cmd(0xC5); 
+send_data_byte(0x00); 
+send_data_byte(0x1E); //VCOM
+send_data_byte(0x80); 
+ 
+    send_cmd( 0xC8 );     //Set Gamma
+    send_data_byte( 0x04 );
+    send_data_byte( 0x67 );
+    send_data_byte( 0x35 );
+    send_data_byte( 0x04 );
+    send_data_byte( 0x08 );
+    send_data_byte( 0x06 );
+    send_data_byte( 0x24 );
+    send_data_byte( 0x01 );
+    send_data_byte( 0x37 );
+    send_data_byte( 0x40 );
+    send_data_byte( 0x03 );
+    send_data_byte( 0x10 );
+    send_data_byte( 0x08 );
+    send_data_byte( 0x80 );
+    send_data_byte( 0x00 );
+ */ 
+ /*   
+
+send_cmd( 0xD0 );   //  # Power_Setting                                                                     
+send_data_byte( 0x07 );  //  #    VC                                                                      
+send_data_byte( 0x04 );  //  #    BT     04                                                             
+send_data_byte( 0x00 );  //  #    VRH    00           
+  
+send_cmd( 0xD1 );   //  # VCOM Control                                                                     
+send_data_byte( 0x00 );   // #    SEL/VCM                                                                      
+send_data_byte( 0x0C );  //  #    VCM    0c                                                                  
+send_data_byte( 0x0F );  //  #    VDV    0f       
+
+
+send_cmd( 0xD2 );     //# Power setting
+send_data_byte( 0x01 );   //Gamma Driver Amplifier:1.00, Source Driver Amplifier: 1.00
+send_data_byte( 0x44 );
+ */
+  
+
+//send_cmd(0xC5); 
+//send_data_byte(0x00); 
+//send_data_byte(0x1E); //VCOM
+//send_data_byte(0x80); 
+  
+  
+  //---
+//send_cmd(0xB1);   //Frame rate 70HZ  
+//send_data_byte(0xB0); 
+
+/*
 send_cmd(0xE0); 
 send_data_byte(0x00); 
 send_data_byte(0x04); 
@@ -334,100 +437,7 @@ send_data_byte(0x09);
 send_data_byte(0x33); 
 send_data_byte(0x37); 
 send_data_byte(0x0F); 
-  
-  
-  
-send_cmd( 0xD1 );   //  # VCOM Control                                                                     
-send_data_byte( 0x00 );   // #    SEL/VCM                                                                      
-send_data_byte( 0x0C );  //  #    VCM    0c                                                                  
-send_data_byte( 0x0F );  //  #    VDV    0f                                                              
 
-send_cmd( 0xD0 );   //  # Power_Setting                                                                     
-send_data_byte( 0x07 );  //  #    VC                                                                      
-send_data_byte( 0x04 );  //  #    BT     04                                                             
-send_data_byte( 0x00 );  //  #    VRH    00                                                                  
-
-send_cmd( 0x36 );  //   # Set_address_mode
-send_data_byte( 0x48 );  //
-//# 0x48 = 0b01001000
-///# 0 - top to bottom
-///# 1 - left to right
-//# 0 - v/h reverse
-//# 0 - refresh top to bottom
-//# 1 - RGB or BGR  (here BGR order)
-//# 0 - <skip>
-//# 0 - no hflip
-//# 0 - no flip
-
-send_cmd( 0x3A );     //# Set pixel format
-send_data_byte( 0x05 );    //DBI:16bit/pixel (65,536 colors)
-  
-
-send_cmd( 0x51 );    // #brignets 
-send_data_byte( 0 );   
-  
-send_cmd( 0x53 );    // #brignets 
-send_data_byte( 0 );     
-  
-send_cmd( 0x55 );    // # Addaptive brignets 
-send_data_byte( 0); 
-  
-send_cmd( 0x5E );    // # Addaptive brignets 
-send_data_byte( 0 );   
-  
-  
-send_cmd(0xC0); 
-send_data_byte(0x18); 
-send_data_byte(0x16); 
-
-send_cmd(0xC1); 
-send_data_byte(0x41); 
-
-send_cmd(0xC5); 
-send_data_byte(0x00); 
-send_data_byte(0x1E); //VCOM
-send_data_byte(0x80);   
- 
-     
-send_cmd(0xC5); 
-send_data_byte(0x00); 
-send_data_byte(0x1E); //VCOM
-send_data_byte(0x80); 
- 
-  
-send_cmd( 0xD2 );     //# Power setting
-send_data_byte( 0x01 );   //Gamma Driver Amplifier:1.00, Source Driver Amplifier: 1.00
-send_data_byte( 0x44 );
- 
-  
-send_cmd(0xC0); 
-send_data_byte(0x18); 
-send_data_byte(0x16); 
-
-send_cmd(0xC1); 
-send_data_byte(0x41); 
-
-send_cmd(0xC5); 
-send_data_byte(0x00); 
-send_data_byte(0x1E); //VCOM
-send_data_byte(0x80); 
-  
-  
-  //---
-send_cmd(0xB1);   //Frame rate 70HZ  
-send_data_byte(0xB0); 
-
-send_cmd(0xB4); 
-send_data_byte(0x02);   
-
-send_cmd(0xB9); //PWM Settings for Brightness Control
-send_data_byte(0x01);// Disabled by default.
-send_data_byte(0xFF); //0xFF = Max brightness
-send_data_byte(0xFF);
-send_data_byte(0x18);
-  
-  
-  
 send_cmd(0xE9); 
 send_data_byte(0x00);
  
@@ -436,26 +446,11 @@ send_data_byte(0xA9);
 send_data_byte(0x51); 
 send_data_byte(0x2C); 
 send_data_byte(0x82);
-//---  
+*/  
   
   
   
-    send_cmd( 0xC8 );     //# Set Gamma
-    send_data_byte( 0x04 );
-    send_data_byte( 0x67 );
-    send_data_byte( 0x35 );
-    send_data_byte( 0x04 );
-    send_data_byte( 0x08 );
-    send_data_byte( 0x06 );
-    send_data_byte( 0x24 );
-    send_data_byte( 0x01 );
-    send_data_byte( 0x37 );
-    send_data_byte( 0x40 );
-    send_data_byte( 0x03 );
-    send_data_byte( 0x10 );
-    send_data_byte( 0x08 );
-    send_data_byte( 0x80 );
-    send_data_byte( 0x00 );
+ /*
 
     send_cmd( 0x2A );  //column address
     send_data_byte( 0x00 );
@@ -468,8 +463,9 @@ send_data_byte(0x82);
     send_data_byte( 0x00 );
     send_data_byte( 0x01 );
     send_data_byte( 0x8F );
-  
-  
+  */
+ 
+    send_cmd( 0x13 );
     send_cmd( 0x29 ); //#display on
     send_cmd( 0x2C ); //#display on
 
@@ -477,6 +473,9 @@ send_data_byte(0x82);
     
  
 }  
+
+
+
 
 //
 // set region to write data
@@ -495,7 +494,7 @@ void TFT_Set_Address(unsigned int x1,unsigned int y1,unsigned int x2, unsigned i
      send_data_int(x2);
 
      
-     set_CS(HIGH);        
+   //  set_CS(HIGH);        
 }
 
 
@@ -522,7 +521,9 @@ void TFT_Box(unsigned int x,unsigned int y,unsigned int x1,unsigned int y1,unsig
 //
 void TFT_Clear(unsigned int color)
 {
- TFT_Box(0,0,479,319,color);   
+   
+ TFT_Box(0,0,479,319,color);
+ 
 }
 
 
@@ -636,12 +637,15 @@ else
 if(DimFont == 8)
 {
      Cptrfont = (C-32)*8;
- 
+
      TFT_Set_Address(x,y,x+7,y+7);
 
+  
      set_CS(LOW); 
      send_cmd(0x2c);                     // # Write_memory_start
 
+     for(i=0;i<100;i++);
+     
      for(i = 0; i <= 7; i++)
      {
        for(k = 0; k <= 7; k++)
@@ -653,6 +657,7 @@ if(DimFont == 8)
        }  
      }  
      set_CS(HIGH); 
+
 }
 
 else if(DimFont == 16)
@@ -723,17 +728,19 @@ void Led29(int status)
 #ifdef FAST_DATA 
 
     uint32_t regval=0;
-    uint32_t phyaddr = 0;
+  //  uint32_t phyaddr = 0;
 // ----------------------------------------------------------------------------- 
 // Led 29 set/reset
 // -----------------------------------------------------------------------------    
-    phyaddr = SUNXI_GPIO_BASE + (6*36)+0x10; // +0x10 -> data reg A
-    regval = readl1(phyaddr);
+   // phyaddr = SUNXI_GPIO_BASE + (6*36)+0x10; // +0x10 -> data reg A
+  //  regval = readl1(phyaddr);
+    regval = *(gpio1 + REG_G);
     if (status == LOW)
       regval &= 0xFFFFFF7F;
     else
       regval |= 0x80;
-    writel1(regval, phyaddr);
+    //writel1(regval, phyaddr);
+    *(gpio1 + REG_G) = regval;
       
 #else
         digitalWrite(BLINK_LED, status);     //blink, port 29   
@@ -949,13 +956,19 @@ int main (void)
     char buf[256];     // buffer
     int step =0;
     float tempC = 0;
+    int ColorX = White;
   
     Init();
     InitLCD();
 
+
+ // **********test: if FAST_DATA = 5s, if normal 50s ********************
+ //   
+ //   TFT_Clear(Green);               //for speed measure test
+ //   for (step=0;step<40;step++)  
+ //      TFT_Clear(Red);
     
     TFT_Clear(Black);
-    
 
     TFT_Line(20,300,460,300,Cyan);
     TFT_Circle(420,220,40,1,Yellow);   //with fill
@@ -968,12 +981,12 @@ int main (void)
     {
       
         
-        delay(500);      
+        delay(250);      
         Led29(HIGH);
 
           sprintf(buf,"TFT ILI9488 Test");
           TFT_Text(buf,165,25,8,Yellow,Black);
-          sprintf(buf,"%04d",step);
+          sprintf(buf,"%04d",step>>1);
           TFT_Text(buf,360,10,24,Cyan,Black);
        
           TFT_Text("Temp ext:",20,240,16,Green,Black);  
@@ -983,7 +996,7 @@ int main (void)
           sprintf(buf,"%02d:%02d.%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
       
 #ifdef DS_1820
-           if ((step & 3) == 1)    //read DS temp every 4 steps (1s *4 = 4s)
+           if ((step & 7) == 1)    //read DS temp every 8 steps (0.5s *8 = 4s)
             {    
              tempC= get_temp_ds();
              if (tempC != 0)        //temperature is valid
@@ -995,7 +1008,7 @@ int main (void)
 #endif 
           
           
-            if ((step & 3) == 0)    //read CPU temp every 4 steps (1s *4 = 4s)
+            if ((step & 7) == 0)    //read CPU temp every 8 steps (0.5s *8 = 4s)
             {    
             tempC= get_temp_cpu();
              if (tempC != 0)        //temperature is valid
@@ -1006,7 +1019,7 @@ int main (void)
             }  
           
                  
-      delay(500);
+      delay(250);
       Led29(LOW);               //blink 
       
           t = time(NULL);
@@ -1014,7 +1027,7 @@ int main (void)
           sprintf(buf,"%d-%d-%d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
           TFT_Text(buf,140,320-16,16,White,Black);
           sprintf(buf,"%02d:%02d.%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
-          TFT_Text(buf,10,60,64,Blue,Black);  
+          TFT_Text(buf,10,60,64,ColorX,Black);  
           
           
        step++;   
