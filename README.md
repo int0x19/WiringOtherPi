@@ -1,45 +1,21 @@
-# wiringBP README
+# WiringOtherPi README
 
-This is a modified WiringPi for OrangePi. We call it WiringOP.
-Test fo Orangepi pc
+An initiative to creat a unified WiringPI port to support all H2/H3 boards
 
-## Download
-### For Orangepi Pi
-    git clone https://github.com/zhaolei/WiringOP.git -b h3 
-## Installation
-    cd WiringOP
-    chmod +x ./build
-    sudo ./build
+## background
 
-```    
-orangepi@orangepi:~$ gpio readall
- +-----+-----+----------+------+---+--OrangePiPC--+---+------+---------+-----+--+
- | BCM | wPi |   Name   | Mode | V | Physical | V | Mode | Name     | wPi | BCM |
- +-----+-----+----------+------+---+----++----+---+------+----------+-----+-----+
- |     |     |     3.3v |      |   |  1 || 2  |   |      | 5v       |     |     |
- |   2 |  -1 |    SDA.0 |      |   |  3 || 4  |   |      | 5V       |     |     |
- |   3 |  -1 |    SCL.0 |      |   |  5 || 6  |   |      | 0v       |     |     |
- |   4 |   6 | IO6 PA06 |  OUT | 0 |  7 || 8  |   |      | TxD3     |     |     |
- |     |     |       0v |      |   |  9 || 10 |   |      | RxD3     |     |     |
- |  17 |  -1 |     RxD2 |      |   | 11 || 12 | 0 | OUT  | IO1 PD14 | 1   | 18  |
- |  27 |  -1 |     TxD2 |      |   | 13 || 14 |   |      | 0v       |     |     |
- |  22 |  -1 |     CTS2 |      |   | 15 || 16 | 0 | OUT  | IO4 PC04 | 4   | 23  |
- |     |     |     3.3v |      |   | 17 || 18 | 0 | OUT  | IO5 PC07 | 5   | 24  |
- |  10 |  -1 |     MOSI |      |   | 19 || 20 |   |      | 0v       |     |     |
- |   9 |  -1 |     MISO |      |   | 21 || 22 |   |      | RTS2     |     |     |
- |  11 |  -1 |     SCLK |      |   | 23 || 24 |   |      | SPI-CE0  |     |     |
- |     |     |       0v |      |   | 25 || 26 |   |      | CE1      |     |     |
- |   0 |  -1 |    SDA.1 |      |   | 27 || 28 |   |      | SCL.1    |     |     |
- |   5 |   7 |  IO7 PA7 |  OUT | 0 | 29 || 30 |   |      | 0v       |     |     |
- |   6 |   8 |  IO8 PA8 |  OUT | 0 | 31 || 32 | 0 | OUT  | IO9 PG08 | 9   | 12  |
- |  13 |  10 | IO10 PA9 |  OUT | 0 | 33 || 34 |   |      | 0v       |     |     |
- |  19 |  12 | IO12PA10 |  OUT | 0 | 35 || 36 | 0 | OUT  | IO13PG09 | 13  | 16  |
- |  26 |  14 | IO14PA20 |  OUT | 0 | 37 || 38 | 0 | OUT  | IO15PG06 | 15  | 20  |
- |     |     |       0v |      |   | 39 || 40 | 0 | OUT  | IO16PG07 | 16  | 21  |
- +-----+-----+----------+------+---+----++----+---+------+----------+-----+-----+
- | BCM | wPi |   Name   | Mode | V | Physical | V | Mode | Name     | wPi | BCM |
- +-----+-----+----------+------+---+--OrangePIPC--+------+----------+-----+-----+
-```    
-Thanks!
+It's a fork of a fork of a fork
 
+WiringPI was ported to BananaPI.  There was an OrangePi fork of the BananaPi fork.  There's enough strong code in the Sunxi community that we're in a position to detect what H3/H2 Boards we are using, so this is an attempt to unify the WiringPI library for AllWinner H2/H3 SBCs.
 
+## Get Involved
+
+All discussion is happening on the Armbian Forums on [this topic](https://forum.armbian.com/index.php/topic/2956-559-gpio-support-for-h2h3-boards-with-a-unified-wiringpi-library-in-a-neat-little-package/)
+
+## General Goals
+
+* WiringPI GPIO support for most AllWinner H2/H3 boards using legacy kernel
+* WiringPI GPIO support for most AllWinner H2/H3 boards using mainline kernel
+* Compatiblity with code using WiringPI dependencies
+* Make my Orange Pi Zero blink my christmas lights
+* Produce a distro-friendly package to be included with Armbian releases

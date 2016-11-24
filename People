@@ -40,3 +40,15 @@ Will Xiao
 
 Peter Chen
   Porting wiringPi for Banana Pro.
+
+Zhao Lei
+  Forked WiringBP to WiringOP for OrangePi
+
+Thomas Kaiser
+  King of the ARM subculture and advocate for a unified Sunxi GPIO library
+
+Lane Jennison
+  Attempted cat-herder for WiringOtherPi
+
+Martin Ayotte
+  Premptively giving Martin credit due to his DTS overlay expertise with Sunxi mainline
