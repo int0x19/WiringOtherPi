@@ -42,7 +42,7 @@ SRC	=	blink.c blink8.c blink12.c					\
 		lcd.c lcd-adafruit.c clock.c					\
 		nes.c								\
 		softPwm.c softTone.c 						\
-		delayTest.c serialRead.c serialTest.c okLed.c ds1302.c		\
+		delayTest.c displayTFT.c displayTFTmy.c serialRead.c serialTest.c okLed.c ds1302.c		\
 		rht03.c piglow.c
 
 OBJ	=	$(SRC:.c=.o)
@@ -123,6 +123,14 @@ softTone:	softTone.o
 delayTest:	delayTest.o
 	@echo [link]
 	@$(CC) -o $@ delayTest.o $(LDFLAGS) $(LDLIBS)
+
+displayTFT:	displayTFT.o
+	@echo [link]
+	@$(CC) -o $@ displayTFT.o $(LDFLAGS) $(LDLIBS)
+
+displayTFTmy:	displayTFTmy.o
+	@echo [link]
+	@$(CC) -o $@ displayTFTmy.o $(LDFLAGS) $(LDLIBS)
 
 serialRead:	serialRead.o
 	@echo [link]
